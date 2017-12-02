@@ -1,0 +1,8 @@
+#! /bin/bash
+
+# this script should be called after a new kernel was installed or an old one
+# has been removed
+
+which update-uboot >/dev/null 2>&1 || exit 0
+
+exec /usr/sbin/update-uboot
