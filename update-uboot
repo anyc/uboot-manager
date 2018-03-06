@@ -1,4 +1,10 @@
 #! /bin/bash
+#
+# Source: https://github.com/anyc/uboot-manager
+# License: GPLv2
+#
+# Written by Mario Kicherer (http://kicherer.org)
+#
 
 . /etc/uboot.cfg
 
@@ -97,7 +103,7 @@ UBOOT_KERNEL_FCTS="${UBOOT_KERNEL_FCTS} vmlinuz_cb"
 
 # look for kernels and execute callbacks
 i=0
-for k in $(ls -vr /boot/vmlinuz*); do
+for k in $(ls -vr /boot/vmlinuz* /boot/zImage* /boot/Image* /boot/xipImage* /boot/uImage*); do
 	PRECMDS=""
 	kernel=$(basename "${k}")
 	version=$(basename "${k}" | cut -d "-" -f2-)
