@@ -16,6 +16,10 @@ UBOOT_KERNEL_ARGS=${UBOOT_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
 UBOOT_MENU_TIMEOUT=${UBOOT_MENU_TIMEOUT-2}
 UBOOT_DEFAULT=${UBOOT_DEFAULT-boot0}
 UBOOT_PREPEND_FW_KERNEL_ARGS=${UBOOT_PREPEND_FW_KERNEL_ARGS-1}
+UBOOT_PRELOADED_DEVTREE=${UBOOT_PRELOADED_DEVTREE-0}
+UBOOT_DEVTREE_FILE=${UBOOT_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
+UBOOT_INITRD_LADDR_ID=${UBOOT_INITRD_LADDR_ID-ramdisk_addr_r}
+UBOOT_KERNEL_LADDR_ID=${UBOOT_KERNEL_LADDR_ID-kernel_addr_r}
 
 # check if mkimage tool is installed
 which mkimage >/dev/null || { echo "missing mkimage"; exit 1; }
@@ -41,14 +45,14 @@ if [ "${UBOOT_STDOUT}" != "" ]; then
 fi
 
 # override device tree?
-if [ "${UBOOT_DEVICE_TREE}" != "" ]; then
-	echo "fatload mmc 0:1 \${fdt_addr} ${UBOOT_DEVICE_TREE}" >> "${UBOOTENV}"
+if [ "${UBOOT_PRELOADED_DEVTREE}" == "0" ]; then
+	echo "fatload mmc 0:1 \${fdt_addr} ${UBOOT_DEVTREE_FILE}" >> "${UBOOTENV}"
+else
+	# check if device tree is available in memory. If yes, get bootargs set by
+	# firmware and store them in $fw_bootargs. If not, load the device tree file
+	# into memory for safety and backwards compatibility
+	echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} ${UBOOT_DEVTREE_FILE}; fi;"  >> "${UBOOTENV}"
 fi
-
-# check if device tree is available in memory. If yes, get bootargs set by
-# firmware and store them in $fw_bootargs. If not, load bcm2709-rpi-2-b.dtb
-# into memory for safety and backwards compatibility
-echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} bcm2709-rpi-2-b.dtb; fi;"  >> "${UBOOTENV}"
 
 # set default kernel args
 if [ "${UBOOT_PREPEND_FW_KERNEL_ARGS}" == "1" ]; then
@@ -74,8 +78,8 @@ function vmlinuz_cb() {
 	
 	if [ -f /boot/initrd.img-${version} ] || [ -f /boot/initrd.uimg-${version} ]; then
 		echo " with initrd"
-		UBOOT_INITRD=\${ramdisk_addr_r}
-		PRECMDS="${PRECMDS}fatload mmc 0:1 \${ramdisk_addr_r} initrd.uimg-${version}; "
+		UBOOT_INITRD=\${${UBOOT_INITRD_LADDR_ID}}
+		PRECMDS="${PRECMDS}fatload mmc 0:1 \${${UBOOT_INITRD_LADDR_ID}} initrd.uimg-${version}; "
 		
 		if [ ! -f /boot/initrd.uimg-${version} ]; then
 			echo "Creating U-Boot image for /boot/initrd.img-${version}"
@@ -93,7 +97,7 @@ function vmlinuz_cb() {
 		PRECMDS="${PRECMDS}run bootargs${i}; "
 	fi
 	
-	echo "setenv boot${i} '${PRECMDS}fatload mmc 0:1 \${kernel_addr_r} ${kernel}; bootz \${kernel_addr_r} ${UBOOT_INITRD} \${fdt_addr}'" >> "${UBOOTENV}"
+	echo "setenv boot${i} '${PRECMDS}fatload mmc 0:1 \${${UBOOT_KERNEL_LADDR_ID}} ${kernel}; bootz \${${UBOOT_KERNEL_LADDR_ID}} ${UBOOT_INITRD} \${fdt_addr}'" >> "${UBOOTENV}"
 	
 	echo "echo '   \"run boot${i}\" will boot ${kernel}'" >> "${UBOOTENV}"
 }
