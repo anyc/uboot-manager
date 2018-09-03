@@ -109,7 +109,12 @@ UBOOT_KERNEL_FCTS="${UBOOT_KERNEL_FCTS} vmlinuz_cb"
 pushd ${UBM_KERNEL_DIR} >/dev/null
 	# look for kernels and execute callbacks
 	i=0
-	for k in $(ls -vr vmlinuz* zImage* Image* xipImage* uImage*); do
+	shopt -s nullglob
+	FILES=$(ls -vr vmlinuz* zImage* Image* xipImage* uImage*)
+	shopt -u nullglob
+	for k in $FILES; do
+		[ -e "$k" ] || continue
+		
 		PRECMDS=""
 		kernel=$(basename "${k}")
 		version=$(basename "${k}" | cut -d "-" -f2-)
