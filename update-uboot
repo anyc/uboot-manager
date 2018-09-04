@@ -11,15 +11,15 @@
 UBOOTENV=$(mktemp)
 
 # default values
-UBOOT_ROOT_PART=${UBOOT_ROOT_PART-/dev/mmcblk0p2}
-UBOOT_KERNEL_ARGS=${UBOOT_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
-UBOOT_MENU_TIMEOUT=${UBOOT_MENU_TIMEOUT-2}
-UBOOT_DEFAULT=${UBOOT_DEFAULT-boot0}
-UBOOT_PREPEND_FW_KERNEL_ARGS=${UBOOT_PREPEND_FW_KERNEL_ARGS-1}
-UBOOT_PRELOADED_DEVTREE=${UBOOT_PRELOADED_DEVTREE-0}
-UBOOT_DEVTREE_FILE=${UBOOT_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
-UBOOT_INITRD_LADDR_ID=${UBOOT_INITRD_LADDR_ID-ramdisk_addr_r}
-UBOOT_KERNEL_LADDR_ID=${UBOOT_KERNEL_LADDR_ID-kernel_addr_r}
+UBM_ROOT_PART=${UBM_ROOT_PART-/dev/mmcblk0p2}
+UBM_KERNEL_ARGS=${UBM_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
+UBM_MENU_TIMEOUT=${UBM_MENU_TIMEOUT-2}
+UBM_DEFAULT=${UBM_DEFAULT-boot0}
+UBM_PREPEND_FW_KERNEL_ARGS=${UBM_PREPEND_FW_KERNEL_ARGS-1}
+UBM_PRELOADED_DEVTREE=${UBM_PRELOADED_DEVTREE-0}
+UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
+UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
+UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-/boot}
 
 # check if mkimage tool is installed
@@ -35,32 +35,32 @@ echo -n "" > "${UBOOTENV}"
 
 
 # override boot procedure by GPIO state?
-if [ "${UBOOT_FAILSAFE_GPIO_PIN}" != "" ]; then
+if [ "${UBM_FAILSAFE_GPIO_PIN}" != "" ]; then
 	# if GPIO pin is high, execute command
-	echo "if gpio input ${UBOOT_FAILSAFE_GPIO_PIN}; then ; else setenv stdout serial,lcd ; echo \"failsafe pin set\"; ${UBOOT_FAILSAFE_COMMAND}; fi" >> "${UBOOTENV}"
+	echo "if gpio input ${UBM_FAILSAFE_GPIO_PIN}; then ; else setenv stdout serial,lcd ; echo \"failsafe pin set\"; ${UBM_FAILSAFE_COMMAND}; fi" >> "${UBOOTENV}"
 fi
 
 # override U-Boot output
-if [ "${UBOOT_STDOUT}" != "" ]; then
-	echo "setenv stdout ${UBOOT_STDOUT}" >> "${UBOOTENV}"
+if [ "${UBM_STDOUT}" != "" ]; then
+	echo "setenv stdout ${UBM_STDOUT}" >> "${UBOOTENV}"
 fi
 
 # override device tree?
-if [ "${UBOOT_PRELOADED_DEVTREE}" == "0" ]; then
-	echo "fatload mmc 0:1 \${fdt_addr} ${UBOOT_DEVTREE_FILE}" >> "${UBOOTENV}"
+if [ "${UBM_PRELOADED_DEVTREE}" == "0" ]; then
+	echo "fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}" >> "${UBOOTENV}"
 else
 	# check if device tree is available in memory. If yes, get bootargs set by
 	# firmware and store them in $fw_bootargs. If not, load the device tree file
 	# into memory for safety and backwards compatibility
-	echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} ${UBOOT_DEVTREE_FILE}; fi;"  >> "${UBOOTENV}"
+	echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}; fi;"  >> "${UBOOTENV}"
 fi
 
 # set default kernel args
-if [ "${UBOOT_PREPEND_FW_KERNEL_ARGS}" == "1" ]; then
+if [ "${UBM_PREPEND_FW_KERNEL_ARGS}" == "1" ]; then
 	# do not append fw_bootargs as it contains rootfstype=ext4
-	echo "setenv bootargs \"\${fw_bootargs} root=${UBOOT_ROOT_PART} rw rootwait ${UBOOT_KERNEL_ARGS}\"" >> "${UBOOTENV}"
+	echo "setenv bootargs \"\${fw_bootargs} root=${UBM_ROOT_PART} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBOOTENV}"
 else
-	echo "setenv bootargs \"root=${UBOOT_ROOT_PART} rw rootwait ${UBOOT_KERNEL_ARGS}\"" >> "${UBOOTENV}"
+	echo "setenv bootargs \"root=${UBM_ROOT_PART} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBOOTENV}"
 fi
 
 # menu header
@@ -79,8 +79,8 @@ function vmlinuz_cb() {
 	
 	if [ -f ${UBM_KERNEL_DIR}/initrd.img-${version} ] || [ -f ${UBM_KERNEL_DIR}/initrd.uimg-${version} ]; then
 		echo " with initrd"
-		UBOOT_INITRD=\${${UBOOT_INITRD_LADDR_ID}}
-		PRECMDS="${PRECMDS}fatload mmc 0:1 \${${UBOOT_INITRD_LADDR_ID}} initrd.uimg-${version}; "
+		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
+		PRECMDS="${PRECMDS}fatload mmc 0:1 \${${UBM_INITRD_LADDR_ID}} initrd.uimg-${version}; "
 		
 		if [ ! -f ${UBM_KERNEL_DIR}/initrd.uimg-${version} ]; then
 			echo "Creating U-Boot image for ${UBM_KERNEL_DIR}/initrd.img-${version}"
@@ -90,7 +90,7 @@ function vmlinuz_cb() {
 		fi
 	else
 		echo ""
-		UBOOT_INITRD=-
+		UBM_INITRD=-
 	fi
 	
 	if [ -f ${UBM_KERNEL_DIR}/cmdline-${version} ]; then
@@ -98,13 +98,13 @@ function vmlinuz_cb() {
 		PRECMDS="${PRECMDS}run bootargs${i}; "
 	fi
 	
-	echo "setenv boot${i} '${PRECMDS}fatload mmc 0:1 \${${UBOOT_KERNEL_LADDR_ID}} ${kernel}; bootz \${${UBOOT_KERNEL_LADDR_ID}} ${UBOOT_INITRD} \${fdt_addr}'" >> "${UBOOTENV}"
+	echo "setenv boot${i} '${PRECMDS}fatload mmc 0:1 \${${UBM_KERNEL_LADDR_ID}} ${kernel}; bootz \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBOOTENV}"
 	
 	echo "echo '   \"run boot${i}\" will boot ${kernel}'" >> "${UBOOTENV}"
 }
 
 # register callback
-UBOOT_KERNEL_FCTS="${UBOOT_KERNEL_FCTS} vmlinuz_cb"
+UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
 
 pushd ${UBM_KERNEL_DIR} >/dev/null
 	# look for kernels and execute callbacks
@@ -120,7 +120,7 @@ pushd ${UBM_KERNEL_DIR} >/dev/null
 		version=$(basename "${k}" | cut -d "-" -f2-)
 		
 		# execute all registered callbacks for this kernel
-		for cb in ${UBOOT_KERNEL_FCTS}; do
+		for cb in ${UBM_KERNEL_FCTS}; do
 			${cb} ${kernel} ${version}
 		done
 		
@@ -130,16 +130,16 @@ pushd ${UBM_KERNEL_DIR} >/dev/null
 popd >/dev/null
 
 # do we alter boot procedure if failsafe file does not exist?
-if [ "${UBOOT_FAILSAFE_FILE}" != "" ]; then
+if [ "${UBM_FAILSAFE_FILE}" != "" ]; then
 	# if file exists, execute command, else create file
-	echo "if test -e mmc 0:1 ${UBOOT_FAILSAFE_FILE}; then setenv stdout serial,lcd ; echo \"failsafe file ${UBOOT_FAILSAFE_FILE} present\"; ${UBOOT_FAILSAFE_COMMAND}; else fatwrite mmc 0:1 0x02050000 ${UBOOT_FAILSAFE_FILE} 1; fi" >> "${UBOOTENV}"
+	echo "if test -e mmc 0:1 ${UBM_FAILSAFE_FILE}; then setenv stdout serial,lcd ; echo \"failsafe file ${UBM_FAILSAFE_FILE} present\"; ${UBM_FAILSAFE_COMMAND}; else fatwrite mmc 0:1 0x02050000 ${UBM_FAILSAFE_FILE} 1; fi" >> "${UBOOTENV}"
 fi
 
 echo "
 setenv autoboot run distro_bootcmd
 
-echo 'Will execute \"run ${UBOOT_DEFAULT}\" in ${UBOOT_MENU_TIMEOUT} seconds, abort with CTRL+c...'
-sleep ${UBOOT_MENU_TIMEOUT} && run ${UBOOT_DEFAULT}
+echo 'Will execute \"run ${UBM_DEFAULT}\" in ${UBM_MENU_TIMEOUT} seconds, abort with CTRL+c...'
+sleep ${UBM_MENU_TIMEOUT} && run ${UBM_DEFAULT}
 " >> "${UBOOTENV}"
 
 # create an image from the script in a format uboot understands
