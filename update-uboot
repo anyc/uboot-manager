@@ -8,7 +8,7 @@
 
 . /etc/uboot.cfg
 
-UBOOTENV=$(mktemp)
+UBM_ENV_FILE=$(mktemp)
 
 # default values
 UBM_ROOT_PART=${UBM_ROOT_PART-/dev/mmcblk0p2}
@@ -31,42 +31,42 @@ if [ -d /etc/uboot.cfg.d/ ]; then
 	done
 fi
 
-echo -n "" > "${UBOOTENV}"
+echo -n "" > "${UBM_ENV_FILE}"
 
 
 # override boot procedure by GPIO state?
 if [ "${UBM_FAILSAFE_GPIO_PIN}" != "" ]; then
 	# if GPIO pin is high, execute command
-	echo "if gpio input ${UBM_FAILSAFE_GPIO_PIN}; then ; else setenv stdout serial,lcd ; echo \"failsafe pin set\"; ${UBM_FAILSAFE_COMMAND}; fi" >> "${UBOOTENV}"
+	echo "if gpio input ${UBM_FAILSAFE_GPIO_PIN}; then ; else setenv stdout serial,lcd ; echo \"failsafe pin set\"; ${UBM_FAILSAFE_COMMAND}; fi" >> "${UBM_ENV_FILE}"
 fi
 
 # override U-Boot output
 if [ "${UBM_STDOUT}" != "" ]; then
-	echo "setenv stdout ${UBM_STDOUT}" >> "${UBOOTENV}"
+	echo "setenv stdout ${UBM_STDOUT}" >> "${UBM_ENV_FILE}"
 fi
 
 # override device tree?
 if [ "${UBM_PRELOADED_DEVTREE}" == "0" ]; then
-	echo "fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}" >> "${UBOOTENV}"
+	echo "fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}" >> "${UBM_ENV_FILE}"
 else
 	# check if device tree is available in memory. If yes, get bootargs set by
 	# firmware and store them in $fw_bootargs. If not, load the device tree file
 	# into memory for safety and backwards compatibility
-	echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}; fi;"  >> "${UBOOTENV}"
+	echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}; fi;"  >> "${UBM_ENV_FILE}"
 fi
 
 # set default kernel args
 if [ "${UBM_PREPEND_FW_KERNEL_ARGS}" == "1" ]; then
 	# do not append fw_bootargs as it contains rootfstype=ext4
-	echo "setenv bootargs \"\${fw_bootargs} root=${UBM_ROOT_PART} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBOOTENV}"
+	echo "setenv bootargs \"\${fw_bootargs} root=${UBM_ROOT_PART} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBM_ENV_FILE}"
 else
-	echo "setenv bootargs \"root=${UBM_ROOT_PART} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBOOTENV}"
+	echo "setenv bootargs \"root=${UBM_ROOT_PART} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBM_ENV_FILE}"
 fi
 
 # menu header
 echo "echo ' '
 echo 'Available boot options:'
-echo '-----------------------'" >> "${UBOOTENV}"
+echo '-----------------------'" >> "${UBM_ENV_FILE}"
 
 
 # callback for each kernel
@@ -75,7 +75,7 @@ function vmlinuz_cb() {
 	version=$2
 	
 	echo -n "Found kernel ${kernel}"
-	echo "" >> "${UBOOTENV}"
+	echo "" >> "${UBM_ENV_FILE}"
 	
 	if [ -f ${UBM_KERNEL_DIR}/initrd.img-${version} ] || [ -f ${UBM_KERNEL_DIR}/initrd.uimg-${version} ]; then
 		echo " with initrd"
@@ -94,13 +94,13 @@ function vmlinuz_cb() {
 	fi
 	
 	if [ -f ${UBM_KERNEL_DIR}/cmdline-${version} ]; then
-		echo "setenv bootargs${i} 'setenv bootargs \"$(cat ${UBM_KERNEL_DIR}/cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBOOTENV}"
+		echo "setenv bootargs${i} 'setenv bootargs \"$(cat ${UBM_KERNEL_DIR}/cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
 		PRECMDS="${PRECMDS}run bootargs${i}; "
 	fi
 	
-	echo "setenv boot${i} '${PRECMDS}fatload mmc 0:1 \${${UBM_KERNEL_LADDR_ID}} ${kernel}; bootz \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBOOTENV}"
+	echo "setenv boot${i} '${PRECMDS}fatload mmc 0:1 \${${UBM_KERNEL_LADDR_ID}} ${kernel}; bootz \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
 	
-	echo "echo '   \"run boot${i}\" will boot ${kernel}'" >> "${UBOOTENV}"
+	echo "echo '   \"run boot${i}\" will boot ${kernel}'" >> "${UBM_ENV_FILE}"
 }
 
 # register callback
@@ -126,13 +126,13 @@ pushd ${UBM_KERNEL_DIR} >/dev/null
 		
 		i=$(( $i + 1 ))
 	done
-	echo "echo ' '" >> "${UBOOTENV}"
+	echo "echo ' '" >> "${UBM_ENV_FILE}"
 popd >/dev/null
 
 # do we alter boot procedure if failsafe file does not exist?
 if [ "${UBM_FAILSAFE_FILE}" != "" ]; then
 	# if file exists, execute command, else create file
-	echo "if test -e mmc 0:1 ${UBM_FAILSAFE_FILE}; then setenv stdout serial,lcd ; echo \"failsafe file ${UBM_FAILSAFE_FILE} present\"; ${UBM_FAILSAFE_COMMAND}; else fatwrite mmc 0:1 0x02050000 ${UBM_FAILSAFE_FILE} 1; fi" >> "${UBOOTENV}"
+	echo "if test -e mmc 0:1 ${UBM_FAILSAFE_FILE}; then setenv stdout serial,lcd ; echo \"failsafe file ${UBM_FAILSAFE_FILE} present\"; ${UBM_FAILSAFE_COMMAND}; else fatwrite mmc 0:1 0x02050000 ${UBM_FAILSAFE_FILE} 1; fi" >> "${UBM_ENV_FILE}"
 fi
 
 echo "
@@ -140,11 +140,11 @@ setenv autoboot run distro_bootcmd
 
 echo 'Will execute \"run ${UBM_DEFAULT}\" in ${UBM_MENU_TIMEOUT} seconds, abort with CTRL+c...'
 sleep ${UBM_MENU_TIMEOUT} && run ${UBM_DEFAULT}
-" >> "${UBOOTENV}"
+" >> "${UBM_ENV_FILE}"
 
 # create an image from the script in a format uboot understands
 echo "Building uboot-manager script..."
-mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBOOTENV}" ${UBM_KERNEL_DIR}/boot.scr || { echo "error creating uboot-manager script image"; exit 1; }
+mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" ${UBM_KERNEL_DIR}/boot.scr || { echo "error creating uboot-manager script image"; exit 1; }
 
-#cat "${UBOOTENV}"
-rm "${UBOOTENV}"
+#cat "${UBM_ENV_FILE}"
+rm "${UBM_ENV_FILE}"
