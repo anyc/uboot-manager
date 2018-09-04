@@ -21,6 +21,7 @@ UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-/boot}
+UBM_SYSROOT=${UBM_SYSROOT}
 
 # check if mkimage tool is installed
 command -v mkimage >/dev/null || { echo "missing mkimage"; exit 1; }
@@ -85,24 +86,24 @@ function vmlinuz_cb() {
 	echo -n "Found kernel ${kernel}"
 	echo "" >> "${UBM_ENV_FILE}"
 	
-	if [ -f ${UBM_KERNEL_DIR}/initrd.img-${version} ] || [ -f ${UBM_KERNEL_DIR}/initrd.uimg-${version} ]; then
+	if [ -f initrd.img-${version} ] || [ -f initrd.uimg-${version} ]; then
 		echo " with initrd"
 		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
 		PRECMDS="${PRECMDS}fatload mmc 0:1 \${${UBM_INITRD_LADDR_ID}} initrd.uimg-${version}; "
 		
-		if [ ! -f ${UBM_KERNEL_DIR}/initrd.uimg-${version} ]; then
-			echo "Creating U-Boot image for ${UBM_KERNEL_DIR}/initrd.img-${version}"
-			mkimage -n "Ramdisk Image ${version}"  -A arm -O linux -T ramdisk -C gzip -d ${UBM_KERNEL_DIR}/initrd.img-${version} ${UBM_KERNEL_DIR}/initrd.uimg-${version} || { echo "error creating initrd.uimg"; exit 1; }
+		if [ ! -f initrd.uimg-${version} ]; then
+			echo "Creating U-Boot image for initrd.img-${version}"
+			mkimage -n "Ramdisk Image ${version}"  -A arm -O linux -T ramdisk -C gzip -d initrd.img-${version} initrd.uimg-${version} || { echo "error creating initrd.uimg"; exit 1; }
 		else
-			echo "Using cached U-Boot image for ${UBM_KERNEL_DIR}/initrd.img-${version}"
+			echo "Using cached U-Boot image for initrd.img-${version}"
 		fi
 	else
 		echo ""
 		UBM_INITRD=-
 	fi
 	
-	if [ -f ${UBM_KERNEL_DIR}/cmdline-${version} ]; then
-		echo "setenv bootargs${i} 'setenv bootargs \"$(cat ${UBM_KERNEL_DIR}/cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
+	if [ -f cmdline-${version} ]; then
+		echo "setenv bootargs${i} 'setenv bootargs \"$(cat cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
 		PRECMDS="${PRECMDS}run bootargs${i}; "
 	fi
 	
@@ -114,28 +115,36 @@ function vmlinuz_cb() {
 # register callback
 UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
 
-pushd ${UBM_KERNEL_DIR} >/dev/null
-	# look for kernels and execute callbacks
-	i=0
-	shopt -s nullglob
-	FILES=$(ls -vr vmlinuz* zImage* Image* xipImage* uImage*)
-	shopt -u nullglob
-	for k in $FILES; do
-		[ -e "$k" ] || continue
-		
-		PRECMDS=""
-		kernel=$(basename "${k}")
-		version=$(basename "${k}" | cut -d "-" -f2-)
-		
-		# execute all registered callbacks for this kernel
-		for cb in ${UBM_KERNEL_FCTS}; do
-			${cb} ${kernel} ${version}
+function browse_kernel_dir() {
+	pushd "$1" >/dev/null
+		# look for kernels and execute callbacks
+		i=0
+		shopt -s nullglob
+		FILES=$(ls -vr vmlinuz* zImage* Image* xipImage* uImage*)
+		shopt -u nullglob
+		for k in $FILES; do
+			[ -e "$k" ] || continue
+			
+			PRECMDS=""
+			kernel=$(basename "${k}")
+			version=$(basename "${k}" | cut -d "-" -f2-)
+			
+			# execute all registered callbacks for this kernel
+			for cb in ${UBM_KERNEL_FCTS}; do
+				${cb} ${kernel} ${version}
+			done
+			
+			i=$(( $i + 1 ))
 		done
-		
-		i=$(( $i + 1 ))
-	done
-	echo "echo ' '" >> "${UBM_ENV_FILE}"
-popd >/dev/null
+		echo "echo ' '" >> "${UBM_ENV_FILE}"
+	popd >/dev/null
+}
+echo "\"${UBM_SYSROOT-/}\""; exit 0
+if [ "${UBM_SUBVOL_SEARCH}" != "1" ]; then
+	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_DIR}"
+else
+	FSTYPE=$(blkid -o value -s TYPE "${UBM_SYSROOT}")
+fi
 
 # do we alter boot procedure if failsafe file does not exist?
 if [ "${UBM_FAILSAFE_FILE}" != "" ]; then
@@ -154,5 +163,5 @@ sleep ${UBM_MENU_TIMEOUT} && run ${UBM_DEFAULT}
 echo "Building uboot-manager script..."
 mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" ${UBM_KERNEL_DIR}/boot.scr || { echo "error creating uboot-manager script image"; exit 1; }
 
-#cat "${UBM_ENV_FILE}"
+[ "${UBM_SHOW_ENV}" != "" ] && cat "${UBM_ENV_FILE}"
 rm "${UBM_ENV_FILE}"
