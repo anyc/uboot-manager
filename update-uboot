@@ -47,12 +47,20 @@ fi
 
 # override device tree?
 if [ "${UBM_PRELOADED_DEVTREE}" == "0" ]; then
-	echo "fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}" >> "${UBM_ENV_FILE}"
+	if [ "${UBM_DEVTREE_FILE}" != "" ]; then
+		echo "fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}" >> "${UBM_ENV_FILE}"
+	fi
 else
 	# check if device tree is available in memory. If yes, get bootargs set by
 	# firmware and store them in $fw_bootargs. If not, load the device tree file
 	# into memory for safety and backwards compatibility
-	echo "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; else fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}; fi;"  >> "${UBM_ENV_FILE}"
+	echo -n "if fdt addr \${fdt_addr}; then fdt get value fw_bootargs /chosen bootargs; printenv fw_bootargs; " >> "${UBM_ENV_FILE}"
+	if [ "${UBM_DEVTREE_FILE}" != "" ]; then
+		echo -n "else fatload mmc 0:1 \${fdt_addr} ${UBM_DEVTREE_FILE}; "  >> "${UBM_ENV_FILE}"
+	else
+		echo -n "echo 'preloaded device tree not found'" >> "${UBM_ENV_FILE}"
+	fi
+	echo    "fi;" >> "${UBM_ENV_FILE}"
 fi
 
 # set default kernel args
