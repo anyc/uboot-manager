@@ -12,6 +12,7 @@ UBM_ENV_FILE=$(mktemp)
 
 # default values
 UBM_ROOT_DEV=${UBM_ROOT_DEV-/dev/mmcblk0p2}
+UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-${UBM_ROOT_DEV}}
 UBM_KERNEL_ARGS=${UBM_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
 UBM_MENU_TIMEOUT=${UBM_MENU_TIMEOUT-2}
 UBM_DEFAULT=${UBM_DEFAULT-boot0}
@@ -21,6 +22,7 @@ UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-boot}
+UBM_FW_DIR=${UBM_FW_DIR-boot}
 UBM_SYSROOT=${UBM_SYSROOT}
 UBM_PART_ID=${UBM_PART_ID-mmc 0:1}
 
@@ -135,7 +137,15 @@ function vmlinuz_cb() {
 UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
 
 function browse_kernel_dir() {
-	pushd "$1/$2" >/dev/null
+	[ -d $1/$2/$3 ] || return
+	
+	BASE_DIR=$1
+	SUBVOL=$2
+	KERNEL_DIR=$3
+	
+	echo "browsing ${BASE_DIR}/${SUBVOL}/${KERNEL_DIR}"
+	
+	pushd "${BASE_DIR}/${SUBVOL}/${KERNEL_DIR}" >/dev/null
 		# look for kernels and execute callbacks
 		i=0
 		
@@ -144,12 +154,13 @@ function browse_kernel_dir() {
 			[ -e "$k" ] || continue
 			
 			PRECMDS=""
+			[ "${SUBVOL}" != "" ] && PRECMDS="${PRECMDS}setenv bootargs \"\${bootargs} rootflags=subvol=${SUBVOL}\"; "
 			kernel=$(basename "${k}")
 			version=$(basename "${k}" | cut -d "-" -f2-)
 			
 			# execute all registered callbacks for this kernel
 			for cb in ${UBM_KERNEL_FCTS}; do
-				${cb} "${2}" ${kernel} ${version}
+				${cb} "${SUBVOL}/${KERNEL_DIR}" ${kernel} ${version}
 			done
 			
 			i=$(( $i + 1 ))
@@ -159,18 +170,18 @@ function browse_kernel_dir() {
 }
 
 if [ "${UBM_SUBVOL_SEARCH}" != "1" ]; then
-	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_DIR}" ""
+	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_DIR}" "" ""
 else
-	FSTYPE=$(blkid -o value -s TYPE "${UBM_ROOT_DEV}")
+	FSTYPE=$(blkid -o value -s TYPE "${UBM_LOCAL_ROOT_DEV}")
 	
 	[ "${FSTYPE}" == "btrfs" ] || { echo "invalid filesystem ${FSTYPE} for subvol search" >&2; exit 1; }
 	
 	TMP_DIR="$(mktemp -d)"
-	mount "${UBM_ROOT_DEV}" "${TMP_DIR}/" -o subvol=/
+	mount "${UBM_LOCAL_ROOT_DEV}" "${TMP_DIR}/" -o subvol=/ || { echo "mount failed" >&2; exit 1; }
 	
 	pushd "${TMP_DIR}" >/dev/null
 		for subvol in @root*; do
-			browse_kernel_dir "${TMP_DIR}" "${subvol}/${UBM_KERNEL_DIR}"
+			browse_kernel_dir "${TMP_DIR}" "${subvol}" "${UBM_KERNEL_DIR}"
 		done
 	popd >/dev/null
 	
@@ -193,7 +204,7 @@ sleep ${UBM_MENU_TIMEOUT} && run ${UBM_DEFAULT}
 
 # create an image from the script in a format uboot understands
 echo "Building uboot-manager script..."
-mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" ${UBM_SYSROOT}/${UBM_KERNEL_DIR}/boot.scr || { echo "error creating uboot-manager script image"; exit 1; }
+mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" ${UBM_SYSROOT}/${UBM_FW_DIR}/boot.scr || { echo "error creating uboot-manager script image"; exit 1; }
 
 [ "${UBM_SHOW_ENV}" != "" ] && cat "${UBM_ENV_FILE}"
 rm "${UBM_ENV_FILE}"
