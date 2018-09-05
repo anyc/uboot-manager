@@ -12,7 +12,7 @@ UBM_ENV_FILE=$(mktemp)
 
 # default values
 UBM_ROOT_DEV=${UBM_ROOT_DEV-/dev/mmcblk0p2}
-UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-${UBM_ROOT_DEV}}
+UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(df --output=source / | tail -n1)}
 UBM_KERNEL_ARGS=${UBM_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
 UBM_MENU_TIMEOUT=${UBM_MENU_TIMEOUT-2}
 UBM_DEFAULT=${UBM_DEFAULT-boot0}
@@ -22,12 +22,13 @@ UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-boot}
-UBM_FW_DIR=${UBM_FW_DIR-boot}
+UBM_FW_DIR=${UBM_FW_DIR-boot/firmware}
 UBM_SYSROOT=${UBM_SYSROOT}
 UBM_PART_ID=${UBM_PART_ID-mmc 0:1}
+UBM_SUBVOL_SEARCH=${UBM_SUBVOL_SEARCH-0}
 
-UBM_FS_LOAD=${UBM_FS_LOAD-fatload}
-UBM_FS_WRITE=${UBM_FS_WRITE-fatwrite}
+UBM_FS_LOAD=${UBM_FS_LOAD-load}
+UBM_FS_WRITE=${UBM_FS_WRITE-write}
 
 function cleanup {
 	[ "${VERBOSE}" ] && echo "cleaning up..."
@@ -124,13 +125,13 @@ function vmlinuz_cb() {
 	fi
 	
 	if [ -f ${dir}/cmdline-${version} ]; then
-		echo "setenv bootargs${i} 'setenv bootargs \"$(cat ${dir}/cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
-		PRECMDS="${PRECMDS}run bootargs${i}; "
+		echo "setenv bootargs${CUR_IDX} 'setenv bootargs \"$(cat ${dir}/cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
+		PRECMDS="${PRECMDS}run bootargs${CUR_IDX}; "
 	fi
 	
-	echo "setenv boot${i} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} '${dir}/${kernel}'; bootz \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
+	echo "setenv boot${CUR_IDX} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} '${dir}/${kernel}'; bootz \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
 	
-	echo "echo '   \"run boot${i}\" will boot ${kernel}'" >> "${UBM_ENV_FILE}"
+	echo "echo '   \"run boot${CUR_IDX}\" will boot ${kernel}'" >> "${UBM_ENV_FILE}"
 }
 
 # register callback
@@ -147,8 +148,6 @@ function browse_kernel_dir() {
 	
 	pushd "${BASE_DIR}/${SUBVOL}/${KERNEL_DIR}" >/dev/null
 		# look for kernels and execute callbacks
-		i=0
-		
 		FILES=$(find . -maxdepth 1 -name "vmlinuz*" -o -name "zImage*" -o -name "Image*" -o -name "xipImage*" -o -name "uImage*" | sort -r)
 		for k in $FILES; do
 			[ -e "$k" ] || continue
@@ -163,11 +162,13 @@ function browse_kernel_dir() {
 				${cb} "${SUBVOL}/${KERNEL_DIR}" ${kernel} ${version}
 			done
 			
-			i=$(( $i + 1 ))
+			CUR_IDX=$(( ${CUR_IDX} + 1 ))
 		done
 		echo "echo ' '" >> "${UBM_ENV_FILE}"
 	popd >/dev/null
 }
+
+CUR_IDX=0
 
 if [ "${UBM_SUBVOL_SEARCH}" != "1" ]; then
 	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_DIR}" "" ""
