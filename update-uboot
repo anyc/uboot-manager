@@ -12,7 +12,11 @@ UBM_ENV_FILE=$(mktemp)
 
 # default values
 UBM_ROOT_DEV=${UBM_ROOT_DEV-/dev/mmcblk0p2}
-UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(df --output=source / | tail -n1)}
+if command -v findmnt >/dev/null; then
+	UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(findmnt -nvo source  /)}
+else
+	UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(df --output=source / | tail -n1)}
+fi
 UBM_KERNEL_ARGS=${UBM_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
 UBM_MENU_TIMEOUT=${UBM_MENU_TIMEOUT-2}
 UBM_DEFAULT=${UBM_DEFAULT-boot0}
