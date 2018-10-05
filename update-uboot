@@ -31,6 +31,21 @@ UBM_SYSROOT=${UBM_SYSROOT}
 UBM_PART_ID=${UBM_PART_ID-mmc 0:1}
 UBM_SUBVOL_SEARCH=${UBM_SUBVOL_SEARCH-0}
 
+UBM_FLASH_UBOOT=${UBM_FLASH_UBOOT-0}
+UBM_FLASH_BINARY=${UBM_FLASH_BINARY-u-boot.imx}
+if [ -z "${UBM_FLASH_DEVICE}" ]; then
+	if [[ ${UBM_LOCAL_ROOT_DEV} =~ [0-9]$ ]] && [ -b ${UBM_LOCAL_ROOT_DEV%?} ]; then
+		UBM_FLASH_DEVICE="${UBM_LOCAL_ROOT_DEV%?}"
+	elif [[ ${UBM_LOCAL_ROOT_DEV} =~ [0-9]$ ]] && [[ "${UBM_LOCAL_ROOT_DEV}" == "/dev/mapper/"* ]] && \
+			[ -b /dev/$(basename "${UBM_LOCAL_ROOT_DEV%?}") ]; then
+		UBM_FLASH_DEVICE="/dev/$(basename "${UBM_LOCAL_ROOT_DEV%?}")"
+	else
+		echo "could not determine \$UBM_FLASH_DEVICE from ${UBM_LOCAL_ROOT_DEV}"
+		exit 1
+	fi
+fi
+UBM_FLASH_DD_PARAMS=${UBM_FLASH_DD_PARAMS-bs=1k seek=1}
+
 UBM_FS_LOAD=${UBM_FS_LOAD-load}
 UBM_FS_WRITE=${UBM_FS_WRITE-write}
 
@@ -209,7 +224,14 @@ sleep ${UBM_MENU_TIMEOUT} && run ${UBM_DEFAULT}
 
 # create an image from the script in a format uboot understands
 echo "Building uboot-manager script..."
-mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" ${UBM_SYSROOT}/${UBM_FW_DIR}/boot.scr || { echo "error creating uboot-manager script image"; exit 1; }
+mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" "${UBM_SYSROOT}/${UBM_FW_DIR}/boot.scr" || { echo "error creating uboot-manager script image"; exit 1; }
 
-[ "${UBM_SHOW_ENV}" != "" ] && cat "${UBM_ENV_FILE}"
+if [ "${UBM_FLASH_UBOOT}" == "1" ]; then
+	[ -f "${UBM_SYSROOT}/${UBM_FW_DIR}/${UBM_FLASH_BINARY}" ] || { echo "ERROR: u-boot binary \"${UBM_SYSROOT}/${UBM_FW_DIR}/${UBM_FLASH_BINARY}\" not found"; exit 1; }
+
+	echo "Flashing ${UBM_FLASH_BINARY}..."
+	dd if="${UBM_SYSROOT}/${UBM_FW_DIR}/${UBM_FLASH_BINARY}" of="${UBM_FLASH_DEVICE}" ${UBM_FLASH_DD_PARAMS} conv=fsync
+fi
+
+[ "${UBM_SHOW_ENV}" != "" ] && { echo -e "\n\nResulting script:\n"; cat "${UBM_ENV_FILE}"; }
 rm "${UBM_ENV_FILE}"
