@@ -34,11 +34,16 @@ UBM_SUBVOL_SEARCH=${UBM_SUBVOL_SEARCH-0}
 UBM_FLASH_UBOOT=${UBM_FLASH_UBOOT-0}
 UBM_FLASH_BINARY=${UBM_FLASH_BINARY-u-boot.imx}
 if [ -z "${UBM_FLASH_DEVICE}" ]; then
-	if [[ ${UBM_LOCAL_ROOT_DEV} =~ [0-9]$ ]] && [ -b ${UBM_LOCAL_ROOT_DEV%?} ]; then
-		UBM_FLASH_DEVICE="${UBM_LOCAL_ROOT_DEV%?}"
+	if [[ ${UBM_LOCAL_ROOT_DEV} =~ [0-9]$ ]] && [ -b ${UBM_LOCAL_ROOT_DEV::-1} ]; then
+		UBM_FLASH_DEVICE="${UBM_LOCAL_ROOT_DEV::-1}"
+	elif [[ ${UBM_LOCAL_ROOT_DEV} =~ p[0-9]$ ]] && [ -b ${UBM_LOCAL_ROOT_DEV::-2} ]; then
+		UBM_FLASH_DEVICE="${UBM_LOCAL_ROOT_DEV::-2}"
 	elif [[ ${UBM_LOCAL_ROOT_DEV} =~ [0-9]$ ]] && [[ "${UBM_LOCAL_ROOT_DEV}" == "/dev/mapper/"* ]] && \
-			[ -b /dev/$(basename "${UBM_LOCAL_ROOT_DEV%?}") ]; then
-		UBM_FLASH_DEVICE="/dev/$(basename "${UBM_LOCAL_ROOT_DEV%?}")"
+			[ -b /dev/$(basename "${UBM_LOCAL_ROOT_DEV::-1}") ]; then
+		UBM_FLASH_DEVICE="/dev/$(basename "${UBM_LOCAL_ROOT_DEV::-1}")"
+	elif [[ ${UBM_LOCAL_ROOT_DEV} =~ p[0-9]$ ]] && [[ "${UBM_LOCAL_ROOT_DEV}" == "/dev/mapper/"* ]] && \
+			[ -b /dev/$(basename "${UBM_LOCAL_ROOT_DEV::-2}") ]; then
+		UBM_FLASH_DEVICE="/dev/$(basename "${UBM_LOCAL_ROOT_DEV::-2}")"
 	else
 		echo "could not determine \$UBM_FLASH_DEVICE from ${UBM_LOCAL_ROOT_DEV}"
 		exit 1
