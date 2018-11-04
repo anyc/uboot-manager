@@ -21,6 +21,7 @@ UBM_KERNEL_ARGS=${UBM_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
 UBM_MENU_TIMEOUT=${UBM_MENU_TIMEOUT-2}
 UBM_DEFAULT=${UBM_DEFAULT-boot0}
 UBM_PREPEND_FW_KERNEL_ARGS=${UBM_PREPEND_FW_KERNEL_ARGS-1}
+UBM_FILTER_FW_KERNEL_ARGS=""
 UBM_PRELOADED_DEVTREE=${UBM_PRELOADED_DEVTREE-0}
 UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
@@ -111,6 +112,12 @@ fi
 
 # set default kernel args
 if [ "${UBM_PREPEND_FW_KERNEL_ARGS}" == "1" ]; then
+	for cb in "${UBM_FILTER_FW_KERNEL_ARGS[@]}"; do
+		[ "$cb" == "" ] && continue
+		# we use sub in a loop instead of gsub, as the latter causes uboot-2018.07 to freeze
+		echo "while setexpr fw_bootargs sub ${cb}; do ; done;" >> "${UBM_ENV_FILE}"
+	done
+	
 	# do not append fw_bootargs as it contains rootfstype=ext4
 	echo "setenv bootargs \"\${fw_bootargs} root=${UBM_ROOT_DEV} rw rootwait ${UBM_KERNEL_ARGS}\"" >> "${UBM_ENV_FILE}"
 else
