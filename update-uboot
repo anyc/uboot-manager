@@ -27,6 +27,7 @@ UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 # bootz for arm32, booti for arm64, zboot x86
 UBM_BOOT_CMD=${UBM_BOOT_CMD-bootz}
+[ -z ${UBM_KERNEL_PATTERNS} ] && UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-boot}
 UBM_FW_DIR=${UBM_FW_DIR-boot/firmware}
 UBM_SYSROOT=${UBM_SYSROOT}
@@ -170,6 +171,9 @@ function vmlinuz_cb() {
 # register callback
 UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
 
+function join_array { local d=$1; shift; echo -n "\"$1"; shift; printf "%s" "${@/#/$d}"; }
+UBM_KERNEL_FILTER="-name $(join_array "\" -o -name \"" ${UBM_KERNEL_PATTERNS[@]} )\""
+
 function browse_kernel_dir() {
 	[ -d $1/$2/$3 ] || return
 	
@@ -181,7 +185,8 @@ function browse_kernel_dir() {
 	
 	pushd "${BASE_DIR}/${SUBVOL}/${KERNEL_DIR}" >/dev/null
 		# look for kernels and execute callbacks
-		FILES=$(find . -maxdepth 1 -name "vmlinuz*" -o -name "zImage*" -o -name "Image*" -o -name "xipImage*" -o -name "uImage*" | sort -r)
+		FILES=$(eval find . -maxdepth 1 ${UBM_KERNEL_FILTER} | sort -r)
+# 		FILES=$(find . -maxdepth 1 -name "vmlinuz*" -o -name "zImage*" -o -name "Image*" -o -name "xipImage*" -o -name "uImage*" | sort -r)
 		for k in $FILES; do
 			[ -e "$k" ] || continue
 			
