@@ -24,6 +24,8 @@ UBM_PREPEND_FW_KERNEL_ARGS=${UBM_PREPEND_FW_KERNEL_ARGS-1}
 UBM_PRELOADED_DEVTREE=${UBM_PRELOADED_DEVTREE-0}
 UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
+UBM_INITRD_NAME=${UBM_INITRD_NAME-initramfs.cpio.gz}
+UBM_INITRD_UBOOT_NAME=${UBM_INITRD_NAME-initramfs.cpio.gz.uboot}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 # bootz for arm32, booti for arm64, zboot x86
 UBM_BOOT_CMD=${UBM_BOOT_CMD-bootz}
@@ -142,16 +144,27 @@ function vmlinuz_cb() {
 	echo -n "Found kernel ${kernel}"
 	echo "" >> "${UBM_ENV_FILE}"
 	
-	if [ -f ${dir}/initrd.img-${version} ] || [ -f ${dir}/initrd.uimg-${version} ]; then
+	if [ -f ${dir}/${UBM_INITRD_NAME}-${version} ] || [ -f ${dir}/${UBM_INITRD_UBOOT_NAME}-${version} ]; then
 		echo " with initrd"
 		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
-		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${dir}/initrd.uimg-${version}'; "
+		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${dir}/${UBM_INITRD_UBOOT_NAME}-${version}'; "
 		
-		if [ ! -f initrd.uimg-${version} ]; then
-			echo "Creating U-Boot image for initrd.img-${version}"
-			mkimage -n "Ramdisk Image ${version}"  -A arm -O linux -T ramdisk -C gzip -d ${dir}/initrd.img-${version} ${dir}/initrd.uimg-${version} || { echo "error creating initrd.uimg"; exit 1; }
+		if [ ! -f ${UBM_INITRD_UBOOT_NAME}-${version} ]; then
+			echo "Creating U-Boot image for ${UBM_INITRD_NAME}-${version}"
+			mkimage -n "Initramfs ${version}" -A arm -O linux -T ramdisk -C gzip -d ${dir}/${UBM_INITRD_NAME}-${version} ${dir}/${UBM_INITRD_UBOOT_NAME}-${version} || { echo "error creating ${UBM_INITRD_UBOOT_NAME}-${version}"; exit 1; }
 		else
-			echo "Using cached U-Boot image for initrd.img-${version}"
+			echo "Using cached U-Boot image for ${UBM_INITRD_NAME}-${version}"
+		fi
+	elif [ -f ${dir}/${UBM_INITRD_NAME} ] || [ -f ${dir}/${UBM_INITRD_UBOOT_NAME} ]; then
+		echo " with initrd"
+		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
+		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${dir}/${UBM_INITRD_UBOOT_NAME}'; "
+		
+		if [ ! -f ${UBM_INITRD_UBOOT_NAME} ]; then
+			echo "Creating U-Boot image for ${UBM_INITRD_NAME}"
+			mkimage -n "Initramfs" -A arm -O linux -T ramdisk -C gzip -d ${dir}/${UBM_INITRD_NAME} ${dir}/${UBM_INITRD_UBOOT_NAME} || { echo "error creating ${UBM_INITRD_UBOOT_NAME}"; exit 1; }
+		else
+			echo "Using cached U-Boot image for ${UBM_INITRD_NAME}"
 		fi
 	else
 		echo ""
