@@ -23,18 +23,19 @@ UBM_DEFAULT=${UBM_DEFAULT-boot0}
 UBM_PREPEND_FW_KERNEL_ARGS=${UBM_PREPEND_FW_KERNEL_ARGS-1}
 UBM_PRELOADED_DEVTREE=${UBM_PRELOADED_DEVTREE-0}
 UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
-UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
-UBM_INITRD_NAME=${UBM_INITRD_NAME-initramfs.cpio.gz}
-UBM_INITRD_UBOOT_NAME=${UBM_INITRD_NAME-initramfs.cpio.gz.uboot}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
+UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
+[ -z ${UBM_KERNEL_PATTERNS} ] && UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
+[ -z ${UBM_INITRD_PATTERNS} ] && UBM_INITRD_PATTERNS=("initramfs.cpio.ugz*" "initrd.uimg*")
 # bootz for arm32, booti for arm64, zboot x86
 UBM_BOOT_CMD=${UBM_BOOT_CMD-bootz}
-[ -z ${UBM_KERNEL_PATTERNS} ] && UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-boot}
 UBM_FW_DIR=${UBM_FW_DIR-boot/firmware}
 UBM_SYSROOT=${UBM_SYSROOT}
 UBM_PART_ID=${UBM_PART_ID-mmc 0:1}
+
 UBM_SUBVOL_SEARCH=${UBM_SUBVOL_SEARCH-0}
+UBM_BTRFS_VOLUME_PREFIX=${UBM_BTRFS_VOLUME_PREFIX-@root}
 
 UBM_FLASH_UBOOT=${UBM_FLASH_UBOOT-0}
 UBM_FLASH_SOURCE_DIR=${UBM_FLASH_SOURCE_DIR-boot}
@@ -141,40 +142,47 @@ function vmlinuz_cb() {
 	kernel=$2
 	version=$3
 	
-	echo -n "Found kernel ${kernel}"
+	echo -n "Found kernel \"${kernel}\""
 	echo "" >> "${UBM_ENV_FILE}"
 	
-	if [ -f ${dir}/${UBM_INITRD_NAME}-${version} ] || [ -f ${dir}/${UBM_INITRD_UBOOT_NAME}-${version} ]; then
-		echo " with initrd"
-		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
-		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${dir}/${UBM_INITRD_UBOOT_NAME}-${version}'; "
-		
-		if [ ! -f ${UBM_INITRD_UBOOT_NAME}-${version} ]; then
-			echo "Creating U-Boot image for ${UBM_INITRD_NAME}-${version}"
-			mkimage -n "Initramfs ${version}" -A arm -O linux -T ramdisk -C gzip -d ${dir}/${UBM_INITRD_NAME}-${version} ${dir}/${UBM_INITRD_UBOOT_NAME}-${version} || { echo "error creating ${UBM_INITRD_UBOOT_NAME}-${version}"; exit 1; }
-		else
-			echo "Using cached U-Boot image for ${UBM_INITRD_NAME}-${version}"
-		fi
-	elif [ -f ${dir}/${UBM_INITRD_NAME} ] || [ -f ${dir}/${UBM_INITRD_UBOOT_NAME} ]; then
-		echo " with initrd"
-		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
-		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${dir}/${UBM_INITRD_UBOOT_NAME}'; "
-		
-		if [ ! -f ${UBM_INITRD_UBOOT_NAME} ]; then
-			echo "Creating U-Boot image for ${UBM_INITRD_NAME}"
-			mkimage -n "Initramfs" -A arm -O linux -T ramdisk -C gzip -d ${dir}/${UBM_INITRD_NAME} ${dir}/${UBM_INITRD_UBOOT_NAME} || { echo "error creating ${UBM_INITRD_UBOOT_NAME}"; exit 1; }
-		else
-			echo "Using cached U-Boot image for ${UBM_INITRD_NAME}"
-		fi
-	else
-		echo ""
-		UBM_INITRD=-
-	fi
+	#
+	# check if there is a matching initramfs
+	#
 	
-	if [ -f ${dir}/cmdline-${version} ]; then
-		echo "setenv bootargs${CUR_IDX} 'setenv bootargs \"$(cat ${dir}/cmdline-${version} | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
+	UBM_INITRD="-"
+	
+	pushd ${BASE_DIR} > /dev/null
+	FILES=$(eval find "${dir}" -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
+	[ "${FILES}" == "" ] && echo ""
+	
+	for fpath in $FILES; do
+		# prefer initrd with a matching version suffix
+		[[ "${fpath}" != *"-${version}" ]] && [ "${UBM_INITRD}" != "-" ] && continue
+		
+		UBM_INITRD_FPATH="$fpath"
+		UBM_INITRD_NAME="$(basename "${UBM_INITRD_FPATH}")"
+		
+		if [ "${UBM_CONVERT_INITRD}" == "1" ] && [ "${UBM_INITRD_NAME}" == *".gz."* ]; then
+			# TODO untested
+			
+			ORIG_FPATH="${UBM_INITRD_FPATH}"
+			UBM_INITRD_FPATH="$(dirname "${UBM_INITRD_FPATH}")/${UBM_INITRD_NAME/.gz./.ugz.}"
+			
+			echo "Creating U-Boot image for \"${UBM_INITRD_NAME}\""
+			mkimage -n "Initramfs" -A arm -O linux -T ramdisk -C gzip -d \"${ORIG_FPATH}\" \"${UBM_INITRD_FPATH}\" || { echo "error creating ${UBM_INITRD_FPATH}"; exit 1; }
+		fi
+		
+		echo " with initrd \"${UBM_INITRD_NAME}\""
+		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
+		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${UBM_INITRD_FPATH}'; "
+	done
+	
+	if [ -f "${dir}/cmdline-${version}" ]; then
+		echo "setenv bootargs${CUR_IDX} 'setenv bootargs \"$(cat "${dir}/cmdline-${version}" | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
 		PRECMDS="${PRECMDS}run bootargs${CUR_IDX}; "
 	fi
+	popd >/dev/null
+	
 	
 	echo "setenv boot${CUR_IDX} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} '${dir}/${kernel}'; ${UBM_BOOT_CMD} \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
 	
@@ -184,9 +192,12 @@ function vmlinuz_cb() {
 # register callback
 UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
 
-function join_array { local d=$1; shift; echo -n "\"$1"; shift; printf "%s" "${@/#/$d}"; }
-UBM_KERNEL_FILTER="-name $(join_array "\" -o -name \"" ${UBM_KERNEL_PATTERNS[@]} )\""
+# convert filename patterns into commandline arguments for the "find" utility
+function join_array { local d="$1"; shift; echo -n "\"$1"; shift; printf "%s" "${@/#/$d}"; }
+UBM_KERNEL_FILTER="-name $(join_array "\" -o -name \"" "${UBM_KERNEL_PATTERNS[@]}" )\""
+UBM_INITRD_FILTER="-name $(join_array "\" -o -name \"" "${UBM_INITRD_PATTERNS[@]}" )\""
 
+# look for kernel images
 function browse_kernel_dir() {
 	[ -d $1/$2/$3 ] || return
 	
@@ -208,7 +219,7 @@ function browse_kernel_dir() {
 			kernel=$(basename "${k}")
 			version=$(basename "${k}" | cut -d "-" -f2-)
 			
-			# execute all registered callbacks for this kernel
+			# execute all registered callbacks for a kernel
 			for cb in ${UBM_KERNEL_FCTS}; do
 				${cb} "${SUBVOL}/${KERNEL_DIR}" ${kernel} ${version}
 			done
@@ -222,8 +233,13 @@ function browse_kernel_dir() {
 CUR_IDX=0
 
 if [ "${UBM_SUBVOL_SEARCH}" != "1" ]; then
+	# just browser the given kernel directory
 	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_DIR}" "" ""
 else
+	#
+	# mount the root volume of btrfs and browse the given kernel directory in each subvolume 
+	#
+	
 	FSTYPE=$(blkid -o value -s TYPE "${UBM_LOCAL_ROOT_DEV}")
 	
 	[ "${FSTYPE}" == "btrfs" ] || { echo "invalid filesystem ${FSTYPE} for subvol search" >&2; exit 1; }
@@ -232,7 +248,7 @@ else
 	mount "${UBM_LOCAL_ROOT_DEV}" "${TMP_DIR}/" -o subvol=/ || { echo "mount failed" >&2; exit 1; }
 	
 	pushd "${TMP_DIR}" >/dev/null
-		for subvol in @root*; do
+		for subvol in ${UBM_BTRFS_VOLUME_PREFIX}*; do
 			browse_kernel_dir "${TMP_DIR}" "${subvol}" "${UBM_KERNEL_DIR}"
 		done
 	popd >/dev/null
