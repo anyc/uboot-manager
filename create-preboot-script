@@ -1,0 +1,42 @@
+#! /bin/bash
+#
+# Source: https://github.com/anyc/uboot-manager
+# License: GPLv2
+#
+# Written by Mario Kicherer (http://kicherer.org)
+#
+
+if [ -x ubm_common.sh ]; then
+	source ubm_common.sh
+elif [ -x /libexec/ubm/ubm_common.sh ]; then
+	source /libexec/ubm/ubm_common.sh
+elif [ -x /usr/libexec/ubm/ubm_common.sh ]; then
+	source /usr/libexec/ubm/ubm_common.sh
+elif [ -x /lib32/exec/ubm/ubm_common.sh ]; then
+	source /lib32/exec/ubm/ubm_common.sh
+elif [ -x /lib64/exec/ubm/ubm_common.sh ]; then
+	source /lib64/exec/ubm/ubm_common.sh
+else 
+	LIBEXEC_PATH="${LIBEXEC_PATH-/libexec}"
+	source "${LIBEXEC_PATH}/ubm/ubm_common.sh"
+fi
+
+if [ $# -lt 1 ]; then
+	UBM_ENV_FILE=$(mktemp)
+
+	echo -n "" > "${UBM_ENV_FILE}"
+	
+	while read x; do
+		echo "${x}" > "${UBM_ENV_FILE}"
+	done
+else
+	[ ! -e "${1}" ] && { echo "${1} does not exist"; exit 1; }
+	UBM_ENV_FILE="${1}"
+fi
+
+echo "Creating preboot script \"${UBM_SYSROOT}/${UBM_FW_DIR}/preboot.scr\""
+mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" "${UBM_SYSROOT}/${UBM_FW_DIR}/preboot.scr" || { echo "error creating uboot-manager script image"; exit 1; }
+
+if [ "${UBM_PREBOOT_SCRIPT}" == "" ]; then
+	echo "Notice: preboot scripts are not enabled in the config" >&2
+fi
