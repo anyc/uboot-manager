@@ -21,4 +21,6 @@ install:
 	$(INSTALL) -m 755 ubm_common.sh $(DESTDIR)$(libexecdir)/ubm
 
 postinst:
-	update-uboot
+	# do not fail if we cannot flash uboot
+	# the uboot pkg might get installed after us and it should call update-uboot again
+	(update-uboot; RES="$$?"; [ "$${RES}" == "2" ] && exit 0 || exit $${RES}; )
