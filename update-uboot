@@ -6,25 +6,48 @@
 # Written by Mario Kicherer (http://kicherer.org)
 #
 
-if [ -x ubm_common.sh ]; then
-	source ubm_common.sh
-elif [ -x /libexec/ubm/ubm_common.sh ]; then
-	source /libexec/ubm/ubm_common.sh
-elif [ -x /usr/libexec/ubm/ubm_common.sh ]; then
-	source /usr/libexec/ubm/ubm_common.sh
-elif [ -x /lib32/exec/ubm/ubm_common.sh ]; then
-	source /lib32/exec/ubm/ubm_common.sh
-elif [ -x /lib64/exec/ubm/ubm_common.sh ]; then
-	source /lib64/exec/ubm/ubm_common.sh
-else 
-	LIBEXEC_PATH="${LIBEXEC_PATH-/libexec}"
-	source "${LIBEXEC_PATH}/ubm/ubm_common.sh"
+if [ -z ${UBM_CFG_LOADED} ]; then
+	if [ -x ubm_common.sh ]; then
+		source ubm_common.sh
+	elif [ -x /lib32/exec/ubm/ubm_common.sh ]; then
+		source /lib32/exec/ubm/ubm_common.sh
+	elif [ -x /usr/lib32/exec/ubm/ubm_common.sh ]; then
+		source /usr/lib32/exec/ubm/ubm_common.sh
+	elif [ -x /lib32/exec/ubm/ubm_common.sh ]; then
+		source /lib32/exec/ubm/ubm_common.sh
+	elif [ -x /lib64/exec/ubm/ubm_common.sh ]; then
+		source /lib64/exec/ubm/ubm_common.sh
+	else
+		LIBEXEC_PATH="${LIBEXEC_PATH-/lib32/exec}"
+		source "${LIBEXEC_PATH}/ubm/ubm_common.sh"
+	fi
+	
+	UBM_CFG_LOADED=1
 fi
 
+if [ "${UBM_USE_MODEL_DIRS}" == "1" ]; then
+	# first we go through all models and check if there are kernels in the model-specific
+	# boot subdirectory and create a model-specific boot_${board_model}.scr. Afterwards, we
+	# create the regular boot.scr that loads the model-specific boot script, if possible.
+	# If the model-specific boot scripts does not boot a kernel, we fall back to the
+	# non-model-specific boot script.
+	
+	for model in "${UBM_MODELS[@]}"; do
+		echo "checking model ${model}"
+		UBM_USE_MODEL_DIRS="0" UBM_KERNEL_DIR="${UBM_KERNEL_DIR}/${model}" UBM_SCRIPT_SUFFIX="_${model}" source "${BASH_SOURCE[0]}"
+	done
+	
+	UBM_ENV_FILE=$(mktemp)
+	
+	echo -n "" > "${UBM_ENV_FILE}"
+	echo "if ${UBM_FS_LOAD} ${UBM_FW_PART_ID} \${${UBM_SCRIPT_LADDR_ID}} \"boot_\${board_name}.scr\"; then source \${${UBM_SCRIPT_LADDR_ID}}; else echo \"model script not found\"; fi" >> "${UBM_ENV_FILE}"
+	
+	# we do not exit here as we look for kernel in the old standard location too
+else
+	UBM_ENV_FILE=$(mktemp)
 
-UBM_ENV_FILE=$(mktemp)
-
-echo -n "" > "${UBM_ENV_FILE}"
+	echo -n "" > "${UBM_ENV_FILE}"
+fi
 
 # override boot procedure by GPIO state?
 if [ "${UBM_FAILSAFE_GPIO_PIN}" != "" ]; then
@@ -91,7 +114,7 @@ function vmlinuz_cb() {
 	UBM_INITRD="-"
 	
 	pushd ${BASE_DIR} > /dev/null
-	FILES=$(eval find "${dir}" -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
+	FILES=$(eval find \"${dir}\" -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
 	[ "${FILES}" == "" ] && echo ""
 	
 	for fpath in $FILES; do
@@ -113,7 +136,7 @@ function vmlinuz_cb() {
 		
 		echo " with initrd \"${UBM_INITRD_NAME}\""
 		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
-		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} '${UBM_INITRD_FPATH}'; "
+		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} \"${UBM_INITRD_FPATH}\"; "
 	done
 	
 	if [ -f "${dir}/cmdline-${version}" ]; then
@@ -123,13 +146,13 @@ function vmlinuz_cb() {
 	popd >/dev/null
 	
 	
-	echo "setenv boot${CUR_IDX} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} '${dir}/${kernel}'; ${UBM_BOOT_CMD} \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
+	echo "setenv boot${CUR_IDX} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} \"${dir}/${kernel}\"; ${UBM_BOOT_CMD} \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
 	
 	echo "echo '   \"run boot${CUR_IDX}\" will boot ${kernel}'" >> "${UBM_ENV_FILE}"
 }
 
 # register callback
-UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
+[[ "${UBM_KERNEL_FCTS}" == *vmlinuz_cb* ]] || UBM_KERNEL_FCTS="${UBM_KERNEL_FCTS} vmlinuz_cb"
 
 # convert filename patterns into commandline arguments for the "find" utility
 function join_array { local d="$1"; shift; echo -n "\"$1"; shift; printf "%s" "${@/#/$d}"; }
@@ -138,7 +161,7 @@ UBM_INITRD_FILTER="-name $(join_array "\" -o -name \"" "${UBM_INITRD_PATTERNS[@]
 
 # look for kernel images
 function browse_kernel_dir() {
-	[ -d $1/$2/$3 ] || return
+	[ -d "$1/$2/$3" ] || return
 	
 	BASE_DIR=$1
 	SUBVOL=$2
@@ -217,7 +240,8 @@ sleep ${UBM_MENU_TIMEOUT} && run ${UBM_DEFAULT}
 
 # create an image from the script in a format uboot understands
 echo "Building uboot-manager script..."
-mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" "${UBM_SYSROOT}/${UBM_FW_DIR}/boot.scr" || { echo "error creating uboot-manager script image"; exit 1; }
+mkdir -p "${UBM_SYSROOT}/${UBM_FW_DIR}"
+mkimage -A arm -O linux -T script -C none -a 0x00000000 -e 0x00000000 -n "uboot-manager" -d "${UBM_ENV_FILE}" "${UBM_SYSROOT}/${UBM_FW_DIR}/boot${UBM_SCRIPT_SUFFIX}.scr" || { echo "error creating uboot-manager script image"; exit 1; }
 
 EXIT_CODE=0
 
@@ -234,4 +258,4 @@ fi
 [ "${UBM_SHOW_ENV}" != "" ] && { echo -e "\n\nResulting script:\n"; cat "${UBM_ENV_FILE}"; }
 rm "${UBM_ENV_FILE}"
 
-exit ${EXIT_CODE}
+[ "${EXIT_CODE}" == "0" ] || exit ${EXIT_CODE}

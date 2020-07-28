@@ -23,7 +23,7 @@ UBM_PRELOADED_DEVTREE=${UBM_PRELOADED_DEVTREE-0}
 UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
-UBM_SCRIPT_LADDR_ID=${UBM_INITRD_LADDR_ID-script_addr_r}
+UBM_SCRIPT_LADDR_ID=${UBM_SCRIPT_LADDR_ID-script_addr_r}
 [ -z ${UBM_KERNEL_PATTERNS} ] && UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
 [ -z ${UBM_INITRD_PATTERNS} ] && UBM_INITRD_PATTERNS=("initramfs.cpio.ugz*" "initrd.uimg*")
 # bootz for arm32, booti for arm64, zboot x86
