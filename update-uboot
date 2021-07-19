@@ -58,6 +58,7 @@ fi
 # override U-Boot output
 if [ "${UBM_STDOUT}" != "" ]; then
 	echo "setenv stdout ${UBM_STDOUT}" >> "${UBM_ENV_FILE}"
+	echo "setenv silent" >> "${UBM_ENV_FILE}"
 fi
 
 # override device tree?
@@ -113,8 +114,10 @@ function vmlinuz_cb() {
 	
 	UBM_INITRD="-"
 	
+	OIFS="${IFS}"
+	IFS=$'\n'
 	pushd ${BASE_DIR} > /dev/null
-	FILES=$(eval find \"${dir}\" -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
+	FILES=$(eval find \"${dir}\" \"${UBM_INITRAMFS_DIR}\" -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
 	[ "${FILES}" == "" ] && echo ""
 	
 	for fpath in $FILES; do
@@ -138,6 +141,7 @@ function vmlinuz_cb() {
 		UBM_INITRD=\${${UBM_INITRD_LADDR_ID}}
 		PRECMDS="${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_INITRD_LADDR_ID}} \"${UBM_INITRD_FPATH}\"; "
 	done
+	IFS="${OIFS}"
 	
 	if [ -f "${dir}/cmdline-${version}" ]; then
 		echo "setenv bootargs${CUR_IDX} 'setenv bootargs \"$(cat "${dir}/cmdline-${version}" | tr '\n' ' ' | sed "s/[[:space:]]*$//")\"'" >> "${UBM_ENV_FILE}"
