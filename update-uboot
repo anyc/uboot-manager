@@ -33,8 +33,8 @@ if [ "${UBM_USE_MODEL_DIRS}" == "1" ]; then
 	# non-model-specific boot script.
 	
 	for model in "${UBM_MODELS[@]}"; do
-		echo "checking model ${model}"
-		UBM_USE_MODEL_DIRS="0" UBM_KERNEL_DIR="${UBM_KERNEL_DIR}/${model}" UBM_SCRIPT_SUFFIX="_${model}" source "${BASH_SOURCE[0]}"
+		echo "checking model \"${model}\""
+		UBM_USE_MODEL_DIRS="0" UBM_KERNEL_SEARCH_DIR="${UBM_KERNEL_DIR}/${model}" UBM_SCRIPT_SUFFIX="_${model}" source "${BASH_SOURCE[0]}"
 	done
 	
 	UBM_ENV_FILE=$(mktemp)
@@ -101,9 +101,11 @@ echo '-----------------------'" >> "${UBM_ENV_FILE}"
 
 # callback for each kernel
 function vmlinuz_cb() {
-	dir=$1
-	kernel=$2
-	version=$3
+	subvol=$1
+	kernel_dir=$2
+	dir=$1/$2
+	kernel=$3
+	version=$4
 	
 	echo -n "Found kernel \"${kernel}\""
 	echo "" >> "${UBM_ENV_FILE}"
@@ -117,7 +119,10 @@ function vmlinuz_cb() {
 	OIFS="${IFS}"
 	IFS=$'\n'
 	pushd ${BASE_DIR} > /dev/null
-	FILES=$(eval find \"${dir}\" \"${UBM_INITRAMFS_DIR}\" -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
+	
+	[ "${UBM_SHARED_INITRAMFS}" != "1" ] || initramfs_dir="\"${subvol}/${UBM_KERNEL_DIR}\""
+	
+	FILES=$(eval find \"${dir}\" ${initramfs_dir} -maxdepth 1 ${UBM_INITRD_FILTER} | sort -r)
 	[ "${FILES}" == "" ] && echo ""
 	
 	for fpath in $FILES; do
@@ -187,7 +192,7 @@ function browse_kernel_dir() {
 			
 			# execute all registered callbacks for a kernel
 			for cb in ${UBM_KERNEL_FCTS}; do
-				${cb} "${SUBVOL}/${KERNEL_DIR}" ${kernel} ${version}
+				${cb} "${SUBVOL}" "${KERNEL_DIR}" ${kernel} ${version}
 			done
 			
 			CUR_IDX=$(( ${CUR_IDX} + 1 ))
@@ -198,9 +203,11 @@ function browse_kernel_dir() {
 
 CUR_IDX=0
 
+[ ! -z "${UBM_KERNEL_SEARCH_DIR}" ] || UBM_KERNEL_SEARCH_DIR="${UBM_KERNEL_DIR}"
+
 if [ "${UBM_SUBVOL_SEARCH}" != "1" ]; then
 	# just browser the given kernel directory
-	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_DIR}" "" ""
+	browse_kernel_dir "${UBM_SYSROOT}/${UBM_KERNEL_SEARCH_DIR}" "" ""
 else
 	#
 	# mount the root volume of btrfs and browse the given kernel directory in each subvolume 
@@ -215,7 +222,7 @@ else
 	
 	pushd "${TMP_DIR}" >/dev/null
 		for subvol in ${UBM_BTRFS_VOLUME_PREFIX}*; do
-			browse_kernel_dir "${TMP_DIR}" "${subvol}" "${UBM_KERNEL_DIR}"
+			browse_kernel_dir "${TMP_DIR}" "${subvol}" "${UBM_KERNEL_SEARCH_DIR}"
 		done
 	popd >/dev/null
 	
