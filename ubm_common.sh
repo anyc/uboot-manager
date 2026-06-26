@@ -26,8 +26,6 @@ UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
 UBM_SCRIPT_LADDR_ID=${UBM_SCRIPT_LADDR_ID-script_addr_r}
 [ -z ${UBM_KERNEL_PATTERNS} ] && UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
 [ -z ${UBM_INITRD_PATTERNS} ] && UBM_INITRD_PATTERNS=("initramfs.cpio.ugz*" "initrd.uimg*")
-# bootz for arm32, booti for arm64, zboot x86
-UBM_BOOT_CMD=${UBM_BOOT_CMD-bootz}
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-boot}
 UBM_INITRAMFS_DIR=${UBM_INITRAMFS_DIR-boot}
 UBM_FW_DIR=${UBM_FW_DIR-boot/firmware}

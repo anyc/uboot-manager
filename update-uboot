@@ -154,7 +154,16 @@ function vmlinuz_cb() {
 	fi
 	popd >/dev/null
 	
-	
+	if [ "${kernel}" == zImage* ]; then
+		UBM_BOOT_CMD="bootz"
+	elif [ "${kernel}" == Image* ]; then
+		UBM_BOOT_CMD="booti"
+	elif [ "${kernel}" == bzImage* ]; then
+		UBM_BOOT_CMD="zboot"
+	else
+		echo "unexpected image file ${kernel}"
+		exit 1
+	fi
 	echo "setenv boot${CUR_IDX} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} \"${dir}/${kernel}\"; ${UBM_BOOT_CMD} \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
 	
 	echo "echo '   \"run boot${CUR_IDX}\" will boot ${kernel}'" >> "${UBM_ENV_FILE}"
