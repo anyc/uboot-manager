@@ -132,7 +132,7 @@ function vmlinuz_cb() {
 		UBM_INITRD_FPATH="$fpath"
 		UBM_INITRD_NAME="$(basename "${UBM_INITRD_FPATH}")"
 		
-		if [ "${UBM_CONVERT_INITRD}" == "1" ] && [ "${UBM_INITRD_NAME}" == *".gz."* ]; then
+		if [ "${UBM_CONVERT_INITRD}" == "1" ] && [[ "${UBM_INITRD_NAME}" == *.gz.* ]]; then
 			# TODO untested
 			
 			ORIG_FPATH="${UBM_INITRD_FPATH}"
@@ -154,16 +154,24 @@ function vmlinuz_cb() {
 	fi
 	popd >/dev/null
 	
-	if [ "${kernel}" == zImage* ]; then
-		UBM_BOOT_CMD="bootz"
-	elif [ "${kernel}" == Image* ]; then
-		UBM_BOOT_CMD="booti"
-	elif [ "${kernel}" == bzImage* ]; then
-		UBM_BOOT_CMD="zboot"
-	else
-		echo "unexpected image file ${kernel}"
-		exit 1
-	fi
+	case "${kernel}" in
+		zImage*|vmlinuz*)
+			UBM_BOOT_CMD="bootz"
+			;;
+		Image*)
+			UBM_BOOT_CMD="booti"
+			;;
+		bzImage*)
+			UBM_BOOT_CMD="zboot"
+			;;
+		uImage*|xipImage*)
+			UBM_BOOT_CMD="bootm"
+			;;
+		*)
+			echo "unexpected image file ${kernel}"
+			exit 1
+			;;
+	esac
 	echo "setenv boot${CUR_IDX} '${PRECMDS}${UBM_FS_LOAD} ${UBM_PART_ID} \${${UBM_KERNEL_LADDR_ID}} \"${dir}/${kernel}\"; ${UBM_BOOT_CMD} \${${UBM_KERNEL_LADDR_ID}} ${UBM_INITRD} \${fdt_addr}'" >> "${UBM_ENV_FILE}"
 	
 	echo "echo '   \"run boot${CUR_IDX}\" will boot ${kernel}'" >> "${UBM_ENV_FILE}"
