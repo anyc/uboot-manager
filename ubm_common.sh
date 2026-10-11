@@ -39,7 +39,7 @@ UBM_FLASH_UBOOT=${UBM_FLASH_UBOOT-0}
 UBM_FLASH_SOURCE_DIR=${UBM_FLASH_SOURCE_DIR-boot}
 UBM_FLASH_BINARY=${UBM_FLASH_BINARY-u-boot.imx}
 UBM_FLASH_DD_PARAMS=${UBM_FLASH_DD_PARAMS-bs=1k seek=1}
-if [ -z "${UBM_FLASH_DEVICE}" ]; then
+if [ "${UBM_FLASH_UBOOT}" != "0" ] && [ -z "${UBM_FLASH_DEVICE}" ]; then
 	# /dev/sda1
 	if [[ ${UBM_LOCAL_ROOT_DEV} =~ [0-9]$ ]] && [ -b ${UBM_LOCAL_ROOT_DEV::-1} ]; then
 		UBM_FLASH_DEVICE="${UBM_LOCAL_ROOT_DEV::-1}"
