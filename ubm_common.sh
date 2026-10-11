@@ -6,7 +6,7 @@
 # Written by Mario Kicherer (http://kicherer.org)
 #
 
-. /etc/uboot.cfg
+[ -r /etc/uboot.cfg ] && . /etc/uboot.cfg
 
 # default values
 UBM_ROOT_DEV=${UBM_ROOT_DEV-/dev/mmcblk0p2}
@@ -24,8 +24,8 @@ UBM_DEVTREE_FILE=${UBM_DEVTREE_FILE-bcm2709-rpi-2-b.dtb}
 UBM_KERNEL_LADDR_ID=${UBM_KERNEL_LADDR_ID-kernel_addr_r}
 UBM_INITRD_LADDR_ID=${UBM_INITRD_LADDR_ID-ramdisk_addr_r}
 UBM_SCRIPT_LADDR_ID=${UBM_SCRIPT_LADDR_ID-script_addr_r}
-[ -z ${UBM_KERNEL_PATTERNS} ] && UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
-[ -z ${UBM_INITRD_PATTERNS} ] && UBM_INITRD_PATTERNS=("initramfs.cpio.ugz*" "initrd.uimg*")
+[ -n "${UBM_KERNEL_PATTERNS[*]:-}" ] || UBM_KERNEL_PATTERNS=("vmlinuz*" "zImage*" "Image*" "xipImage*" "uImage*")
+[ -n "${UBM_INITRD_PATTERNS[*]:-}" ] || UBM_INITRD_PATTERNS=("initramfs.cpio.ugz*" "initrd.uimg*")
 UBM_KERNEL_DIR=${UBM_KERNEL_DIR-boot}
 UBM_INITRAMFS_DIR=${UBM_INITRAMFS_DIR-boot}
 UBM_FW_DIR=${UBM_FW_DIR-boot/firmware}
@@ -71,7 +71,7 @@ function cleanup {
 	
 	[ -d "${TMP_DIR}" ] && mountpoint "${TMP_DIR}" > /dev/null && umount "${TMP_DIR}" || :
 	
-	[ -d "${TMP_DIR}" ] && rmdir "${TMP_DIR}"
+	[ -d "${TMP_DIR:-}" ] && rmdir "${TMP_DIR}" 2>/dev/null || :
 	
 	# TODO backup and restore original env
 }

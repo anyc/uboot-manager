@@ -6,8 +6,9 @@
 # Written by Mario Kicherer (http://kicherer.org)
 #
 
-if [ -x ubm_common.sh ]; then
-	source ubm_common.sh
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+if [ -r "${SCRIPT_DIR}/ubm_common.sh" ]; then
+	source "${SCRIPT_DIR}/ubm_common.sh"
 elif [ -x /libexec/ubm/ubm_common.sh ]; then
 	source /libexec/ubm/ubm_common.sh
 elif [ -x /usr/libexec/ubm/ubm_common.sh ]; then
@@ -24,11 +25,8 @@ fi
 if [ $# -lt 1 ]; then
 	UBM_ENV_FILE=$(mktemp)
 
-	echo -n "" > "${UBM_ENV_FILE}"
-	
-	while read x; do
-		echo "${x}" > "${UBM_ENV_FILE}"
-	done
+	trap 'rm -f -- "${UBM_ENV_FILE}"' EXIT
+	cat > "${UBM_ENV_FILE}"
 else
 	[ ! -e "${1}" ] && { echo "${1} does not exist"; exit 1; }
 	UBM_ENV_FILE="${1}"
