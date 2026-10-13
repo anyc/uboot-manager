@@ -238,23 +238,32 @@ else
 	# mount the root volume of btrfs and browse the given kernel directory in each subvolume 
 	#
 	
-	FSTYPE=$(blkid -o value -s TYPE "${UBM_LOCAL_ROOT_DEV}")
-	
-	[ "${FSTYPE}" == "btrfs" ] || { echo "invalid filesystem ${FSTYPE} for subvol search" >&2; exit 1; }
-	
-	TMP_DIR="$(mktemp -d)"
-	mount "${UBM_LOCAL_ROOT_DEV}" "${TMP_DIR}/" -o subvol=/ || { echo "mount failed" >&2; exit 1; }
-	
-	pushd "${TMP_DIR}" >/dev/null
-		for subvol_path in "${TMP_DIR}/${UBM_BTRFS_VOLUME_PREFIX}"*; do
+	if [ -n "${UBM_BTRFS_ROOT_DIR}" ]; then
+		# The caller owns this already mounted Btrfs top-level view. Never
+		# unmount it or pass it to cleanup as a temporary mountpoint.
+		SUBVOL_ROOT_DIR=$(cd -- "${UBM_BTRFS_ROOT_DIR}" && pwd) || exit 1
+	else
+		FSTYPE=$(blkid -o value -s TYPE "${UBM_LOCAL_ROOT_DEV}")
+		[ "${FSTYPE}" == "btrfs" ] || { echo "invalid filesystem ${FSTYPE} for subvol search" >&2; exit 1; }
+
+		TMP_DIR="$(mktemp -d)"
+		mount "${UBM_LOCAL_ROOT_DEV}" "${TMP_DIR}/" -o subvol=/ || { echo "mount failed" >&2; exit 1; }
+		SUBVOL_ROOT_DIR="${TMP_DIR}"
+	fi
+
+	pushd "${SUBVOL_ROOT_DIR}" >/dev/null
+		for subvol_path in "${SUBVOL_ROOT_DIR}/${UBM_BTRFS_VOLUME_PREFIX}"*; do
 			[ -d "${subvol_path}" ] || continue
-			subvol=${subvol_path#"${TMP_DIR}"/}
-			browse_kernel_dir "${TMP_DIR}" "${subvol}" "${UBM_KERNEL_SEARCH_DIR}"
+			subvol=${subvol_path#"${SUBVOL_ROOT_DIR}"/}
+			browse_kernel_dir "${SUBVOL_ROOT_DIR}" "${subvol}" "${UBM_KERNEL_SEARCH_DIR}"
 		done
 	popd >/dev/null
-	
-	umount "${TMP_DIR}" || exit 1
-	rmdir "${TMP_DIR}" || exit 1
+
+	if [ -z "${UBM_BTRFS_ROOT_DIR}" ]; then
+		umount "${TMP_DIR}" || exit 1
+		rmdir "${TMP_DIR}" || exit 1
+		unset TMP_DIR
+	fi
 fi
 
 # do we alter boot procedure if failsafe file does not exist?

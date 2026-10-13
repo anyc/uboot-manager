@@ -10,10 +10,14 @@
 
 # default values
 UBM_ROOT_DEV=${UBM_ROOT_DEV-/dev/mmcblk0p2}
-if command -v findmnt >/dev/null; then
-	UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(findmnt -nvo source  /)}
-else
-	UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(df --output=source / | tail -n1)}
+# A supplied Btrfs view does not need a local block device. Flashing still
+# needs the device, even when the kernel search uses an existing view.
+if [ -z "${UBM_BTRFS_ROOT_DIR:-}" ] || [ "${UBM_FLASH_UBOOT:-0}" == "1" ]; then
+	if command -v findmnt >/dev/null; then
+		UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(findmnt -nvo source /)}
+	else
+		UBM_LOCAL_ROOT_DEV=${UBM_LOCAL_ROOT_DEV-$(df --output=source / | tail -n1)}
+	fi
 fi
 UBM_KERNEL_ARGS=${UBM_KERNEL_ARGS-rootfstype=btrfs quiet splash logo.nologo}
 UBM_MENU_TIMEOUT=${UBM_MENU_TIMEOUT-2}
@@ -33,6 +37,7 @@ UBM_SYSROOT=${UBM_SYSROOT}
 UBM_PART_ID=${UBM_PART_ID-mmc 0:1}
 
 UBM_SUBVOL_SEARCH=${UBM_SUBVOL_SEARCH-0}
+UBM_BTRFS_ROOT_DIR=${UBM_BTRFS_ROOT_DIR-}
 UBM_BTRFS_VOLUME_PREFIX=${UBM_BTRFS_VOLUME_PREFIX-@root}
 
 UBM_FLASH_UBOOT=${UBM_FLASH_UBOOT-0}

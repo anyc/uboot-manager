@@ -47,6 +47,27 @@ mechanism, make sure the operating system will remove the file after a
 successful boot. For example, you could put `rm /boot/boot-failure-check`
 into `/etc/rc.local`.
 
+Building images from an existing rootfs view
+-------------------------------------------
+
+With `UBM_SUBVOL_SEARCH=1`, `update-uboot` normally mounts the Btrfs top-level
+volume to discover subvolumes. An image builder can supply that view directly:
+
+```sh
+UBM_SUBVOL_SEARCH=1 UBM_BTRFS_ROOT_DIR=/path/to/root-volume update-uboot
+```
+
+The supplied directory must contain the subvolume directories, for example
+`@root/boot/vmlinuz-*`. It can be a guestmount directory or a temporary directory
+whose `@root` entry points to an already mounted rootfs. Subvolume names remain
+in the generated kernel and initrd load paths and in `rootflags=subvol=...`.
+The caller owns this view; `update-uboot` does not mount, unmount, or remove it.
+
+Supply `UBM_BTRFS_ROOT_DIR` through the build environment so it takes effect
+before local root-device discovery. `UBM_SYSROOT` continues to control where
+the firmware boot scripts are written. Leave `UBM_BTRFS_ROOT_DIR` unset on the
+target to retain normal block-device discovery and mounting.
+
 Default configuration
 ---------------------
 
